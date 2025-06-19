@@ -1,82 +1,57 @@
-from django.contrib.admin import ModelAdmin, register
-
-from .models import (
-    Ingredient, IngredientInRecipe, Recipe,
-    Tag, ShoppingCart, Follow, Favorite, TagInRecipe
-)
+from django.contrib import admin
+from .models import Ingredient, Tag, Recipe, RecipeIngredient, Favorite, ShoppingCart
 
 
-@register(Ingredient)
-class IngredientAdmin(ModelAdmin):
-    """Панель администратора для ингредиентов"""
-
+@admin.register(Ingredient)
+class IngredientAdmin(admin.ModelAdmin):
+    list_display = ('name', 'measurement_unit')
     search_fields = ('name',)
-    list_display = ('pk', 'name', 'measurement_unit')
 
 
-@register(IngredientInRecipe)
-class IngredientInRecipe(ModelAdmin):
-    """Панель администратора для ингредиентов в рецепте."""
+@admin.register(Tag)
+class TagAdmin(admin.ModelAdmin):
+    list_display = ('name', 'color', 'slug')
+    search_fields = ('name', 'slug')
 
-    list_display = ('pk', 'recipe', 'ingredient', 'amount')
+
+class RecipeIngredientInline(admin.TabularInline):
+    model = RecipeIngredient
+    extra = 1
 
 
-@register(Recipe)
-class RecipeAdmin(ModelAdmin):
-    """Панель администратора для рецептов."""
+@admin.register(Recipe)
+class RecipeAdmin(admin.ModelAdmin):
+    list_display = ('name', 'author')
+    list_filter = ('tags',)
+    search_fields = ('author__username', 'name')
+    inlines = [RecipeIngredientInline]
 
-    list_filter = ('author', 'name', 'tags')
-    search_fields = ('name',)
-    list_display = (
-        'pk', 'name', 'author', 'get_favorites', 'get_tags', 'created'
-    )
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related('favorites')
 
-    def get_favorites(self, obj):
+    def favorited_count(self, obj):
         return obj.favorites.count()
+    favorited_count.short_description = 'Число добавлений в избранное'
 
-    get_favorites.short_description = (
-        'Количество добавлений рецепта в избранное'
-    )
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        recipe = self.get_object(request, object_id)
+        extra_context = extra_context or {}
+        extra_context['favorited_count'] = recipe.favorites.count()
+        return super().change_view(request, object_id, form_url, extra_context=extra_context)
 
-    def get_tags(self, obj):
-        return '\n'.join(obj.tags.values_list('name', flat=True))
-
-    get_tags.short_description = 'Тег или список тегов'
-
-
-@register(Tag)
-class TagAdmin(ModelAdmin):
-    """Панель администратора для тегов."""
-
-    list_display = ('pk', 'name', 'color', 'slug')
+    def get_changeform_initial_data(self, request):
+        initial = super().get_changeform_initial_data(request)
+        initial['author'] = request.user.id
+        return initial
 
 
-@register(ShoppingCart)
-class ShoppingCartAdmin(ModelAdmin):
-    """Панель администратора для списка покупок."""
-
-    list_display = ('pk', 'user', 'recipe')
-
-
-@register(Follow)
-class FollowAdmin(ModelAdmin):
-    """Панель администратора для подписок."""
-
-    search_fields = ('user', 'author')
-    list_filter = ('user', 'author')
-    list_display = ('pk', 'user', 'author')
+@admin.register(Favorite)
+class FavoriteAdmin(admin.ModelAdmin):
+    list_display = ('user', 'recipe')
+    search_fields = ('user__username', 'recipe__name')
 
 
-@register(Favorite)
-class FavoriteAdmin(ModelAdmin):
-    """Панель администратора для избранного."""
-
-    list_display = ('pk', 'user', 'recipe')
-
-
-@register(TagInRecipe)
-class TagAdmin(ModelAdmin):
-    """Панель администратора для тегов рецепта."""
-
-    list_display = ('pk', 'tag', 'recipe')
-    
+@admin.register(ShoppingCart)
+class ShoppingCartAdmin(admin.ModelAdmin):
+    list_display = ('user', 'recipe')
+    search_fields = ('user__username', 'recipe__name')
