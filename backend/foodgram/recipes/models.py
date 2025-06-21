@@ -41,22 +41,6 @@ class Ingredient(models.Model):
         return f'{self.name}, {self.measurement_unit}'
 
 
-class Tag(models.Model):
-    """Модель тега."""
-
-    name = models.CharField('Название', max_length=200, unique=True)
-    color = models.CharField('Цвет в HEX', max_length=7, unique=True)
-    slug = models.SlugField('Слаг', max_length=200, unique=True)
-
-    class Meta:
-        verbose_name = 'Тег'
-        verbose_name_plural = 'Теги'
-        ordering = ['name']
-
-    def __str__(self):
-        return self.name
-
-
 class Recipe(models.Model):
     """Модель рецепта."""
 
