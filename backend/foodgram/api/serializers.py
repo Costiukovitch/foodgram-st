@@ -13,7 +13,6 @@ from recipes.models import (
     RecipeIngredient,
     Favorite,
     ShoppingCart,
-    Follow
 )
 from constants import (
     MIN_COOKING_TIME,

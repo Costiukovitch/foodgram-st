@@ -10,17 +10,12 @@ from rest_framework.viewsets import ModelViewSet
 
 from recipes.models import (
     Ingredient,
-    Tag,
     Recipe,
-    Favorite,
-    ShoppingCart,
-    Follow,
     RecipeIngredient,
 )
 from users.models import User
 from .serializers import (
     IngredientSerializer,
-    TagSerializer,
     RecipeSerializer,
     CreateRecipeSerializer,
     FollowSerializer,
@@ -39,14 +34,6 @@ class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = IngredientSerializer
     permission_classes = [AllowAny]
     filterset_class = IngredientFilter
-
-
-class TagViewSet(viewsets.ReadOnlyModelViewSet):
-    """Вьюсет для работы с тегами."""
-
-    queryset = Tag.objects.all()
-    serializer_class = TagSerializer
-    permission_classes = [AllowAny]
 
 
 class RecipeViewSet(ModelViewSet):

@@ -1,15 +1,10 @@
 import django_filters
 from django_filters.rest_framework import FilterSet
 
-from recipes.models import Recipe, Ingredient, Tag
+from recipes.models import Recipe, Ingredient
 
 
 class RecipeFilter(FilterSet):
-    tags = django_filters.ModelMultipleChoiceFilter(
-        field_name='tags__slug',
-        to_field_name='slug',
-        queryset=Tag.objects.all(),
-    )
     author = django_filters.NumberFilter(field_name='author__id')
     is_favorited = django_filters.BooleanFilter(method='filter_is_favorited')
     is_in_shopping_cart = django_filters.BooleanFilter(

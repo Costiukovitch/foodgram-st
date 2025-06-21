@@ -1,17 +1,11 @@
 from django.contrib import admin
-from .models import Ingredient, Tag, Recipe, RecipeIngredient, Favorite, ShoppingCart
+from .models import Ingredient, Recipe, RecipeIngredient, Favorite, ShoppingCart
 
 
 @admin.register(Ingredient)
 class IngredientAdmin(admin.ModelAdmin):
     list_display = ('name', 'measurement_unit')
     search_fields = ('name',)
-
-
-@admin.register(Tag)
-class TagAdmin(admin.ModelAdmin):
-    list_display = ('name', 'color', 'slug')
-    search_fields = ('name', 'slug')
 
 
 class RecipeIngredientInline(admin.TabularInline):
