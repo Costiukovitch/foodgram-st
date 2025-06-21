@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
 
-from recipes.constants import (
+from constants import (
     MIN_COOKING_TIME,
     MAX_COOKING_TIME,
     MIN_INGREDIENT_AMOUNT,
