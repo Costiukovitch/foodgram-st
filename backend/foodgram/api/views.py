@@ -4,7 +4,10 @@ from django.shortcuts import get_object_or_404
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import (
+    IsAuthenticated,
+    AllowAny,
+)
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
@@ -23,7 +26,10 @@ from .serializers import (
     ShoppingCartSerializer
 )
 from .filters import RecipeFilter, IngredientFilter
-from .permissions import IsAuthorOrReadOnly
+from .permissions import (
+    IsAuthorOrReadOnly,
+    IsAuthenticatedOrReadOnly,
+)
 from .pagination import CustomPageNumberPagination
 
 
@@ -41,7 +47,7 @@ class RecipeViewSet(ModelViewSet):
 
     queryset = Recipe.objects.all()
     pagination_class = CustomPageNumberPagination
-    permission_classes = [IsAuthorOrReadOnly]
+    permission_classes = [IsAuthenticatedOrReadOnly]
     filterset_class = RecipeFilter
 
     def get_serializer_class(self):
@@ -49,8 +55,26 @@ class RecipeViewSet(ModelViewSet):
             return CreateRecipeSerializer
         return RecipeSerializer
 
+    def get_permissions(self):
+        if self.action in ['create']:
+            return [IsAuthenticated()]
+        elif self.action in ['update', 'partial_update', 'destroy']:
+            self.permission_classes = [IsAuthorOrReadOnly]
+        return super().get_permissions()
+
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED,
+            headers=headers
+        )
 
     @action(detail=True, methods=['post', 'delete'], url_path='favorite')
     def favorite(self, request, pk=None):
