@@ -1,13 +1,15 @@
+import os
+
 from pathlib import Path
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+SECRET_KEY = os.getenv('SECRET_KEY')
 
-SECRET_KEY = 'django-insecure-+b^94z4*7rov62)off^o6h$1=_9+=e!a!$7f*67phi$bksdrf0'
+DEBUG = os.getenv('ENV') == 'DEBUG'
 
-DEBUG = True
-
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -16,14 +18,16 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django_filters',
-    'djoser',
+
     'rest_framework',
     'rest_framework.authtoken',
+    'djoser',
+    'django_filters',
 
-    'recipes',
     'api',
+    'utils',
     'users',
+    'recipes',
 ]
 
 MIDDLEWARE = [
@@ -36,7 +40,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'foodgram.urls'
+ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [
     {
@@ -45,7 +49,6 @@ TEMPLATES = [
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
-                'django.template.context_processors.debug',
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
@@ -54,15 +57,28 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'foodgram.wsgi.application'
+WSGI_APPLICATION = 'config.wsgi.application'
 
+DB_ENGINE = os.getenv('DB_ENGINE')
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+if DB_ENGINE == 'django.db.backends.postgresql':
+    DATABASES = {
+        'default': {
+            'ENGINE': DB_ENGINE,
+            'NAME': os.getenv('POSTGRES_DB', 'db'),
+            'USER': os.getenv('POSTGRES_USER', 'user'),
+            'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'password'),
+            'HOST': os.getenv('DB_HOST', 'localhost'),
+            'PORT': os.getenv('DB_PORT', '5432')
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -80,8 +96,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = 'ru'
-
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Yekaterinburg'
 
 USE_I18N = True
 
@@ -90,31 +105,38 @@ USE_L10N = True
 USE_TZ = True
 
 STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'static_backend'
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'users.User'
 
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
-    ),
-    'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticatedOrReadOnly'
-    ),
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'api.pagination.CustomPagination',
+    'SEARCH_PARAM': 'name',
 }
 
 DJOSER = {
     'LOGIN_FIELD': 'email',
-    'USER_ID_FIELD': 'id',
-    'HIDE_USERS': False,
-    'SERIALIZERS': {
-        'user': 'api.serializers.CustomUserSerializer',
-        'user_create': 'djoser.serializers.UserCreateSerializer',
-        'current_user': 'api.serializers.CustomUserSerializer',
-    },
+    'USERNAME_FIELD': 'email',
     'PERMISSIONS': {
-        'token_create': ['rest_framework.permissions.AllowAny'],
-        'token_destroy': ['rest_framework.permissions.IsAuthenticated'],
-    }
+        'user_list': ['rest_framework.permissions.IsAuthenticatedOrReadOnly'],
+        'user': ['rest_framework.permissions.IsAuthenticatedOrReadOnly'],
+        'me': ['djoser.permissions.CurrentUserOrAdminOrReadOnly'],
+    },
+    'SERIALIZERS': {
+        'current_user': 'api.serializers.UserSerializer',
+        'user': 'api.serializers.UserSerializer',
+        'user_create': 'djoser.serializers.UserCreateSerializer',
+    },
+    'HIDE_USERS': False,
 }
