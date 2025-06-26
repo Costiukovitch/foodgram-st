@@ -1,15 +1,17 @@
 from django.db.models import Sum
-from django.http import HttpResponse
+from django.http import HttpResponse, Http404
 from django.shortcuts import get_object_or_404
+
+from djoser.views import UserViewSet as DjoserUserViewSet
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.permissions import (
-    IsAuthenticated,
-    AllowAny,
-)
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
+from rest_framework import permissions
+from rest_framework.viewsets import GenericViewSet
+from rest_framework.mixins import ListModelMixin, RetrieveModelMixin
 
 from recipes.models import (
     Ingredient,
@@ -23,13 +25,11 @@ from .serializers import (
     CreateRecipeSerializer,
     FollowSerializer,
     FavoriteSerializer,
-    ShoppingCartSerializer
+    ShoppingCartSerializer,
+    CustomUserSerializer,
 )
 from .filters import RecipeFilter, IngredientFilter
-from .permissions import (
-    IsAuthorOrReadOnly,
-    IsAuthenticatedOrReadOnly,
-)
+from .permissions import IsAuthorOrReadOnly, IsAuthenticatedOrReadOnly
 from .pagination import CustomPageNumberPagination
 
 
@@ -57,24 +57,13 @@ class RecipeViewSet(ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create']:
-            return [IsAuthenticated()]
+            self.permission_classes = [IsAuthenticated()]
         elif self.action in ['update', 'partial_update', 'destroy']:
-            self.permission_classes = [IsAuthorOrReadOnly]
+            self.permission_classes = [IsAuthorOrReadOnly()]
         return super().get_permissions()
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(
-            serializer.data,
-            status=status.HTTP_201_CREATED,
-            headers=headers
-        )
 
     @action(detail=True, methods=['post', 'delete'], url_path='favorite')
     def favorite(self, request, pk=None):
@@ -99,6 +88,7 @@ class RecipeViewSet(ModelViewSet):
                 )
             return Response(status=status.HTTP_204_NO_CONTENT)
 
+
     @action(detail=True, methods=['post', 'delete'], url_path='shopping_cart')
     def shopping_cart(self, request, pk=None):
         recipe = get_object_or_404(Recipe, id=pk)
@@ -110,8 +100,7 @@ class RecipeViewSet(ModelViewSet):
                     {'error': 'Рецепт уже добавлен в корзину покупок'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            serializer = ShoppingCartSerializer(recipe, context={'request': request})
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response({'success': 'Рецепт добавлен в список покупок'}, status=status.HTTP_201_CREATED)
 
         elif request.method == 'DELETE':
             deleted, _ = request.user.shopping_cart.filter(recipe=recipe).delete()
@@ -121,6 +110,7 @@ class RecipeViewSet(ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             return Response(status=status.HTTP_204_NO_CONTENT)
+
 
     @action(detail=False, methods=['get'], url_path='download_shopping_cart')
     def download_shopping_cart(self, request):
@@ -148,7 +138,7 @@ class FollowViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def list(self, request):
-        follows = request.user.follows.all().select_related('author')
+        follows = request.user.follows.select_related('author').all()
         paginator = CustomPageNumberPagination()
         page = paginator.paginate_queryset(follows, request)
         serializer = FollowSerializer(page, many=True, context={'request': request})
@@ -164,13 +154,14 @@ class FollowViewSet(viewsets.ViewSet):
                     {'error': 'Нельзя подписаться на самого себя.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+
             follow, created = request.user.follows.get_or_create(author=author)
             if not created:
                 return Response(
                     {'error': 'Вы уже подписаны на этого пользователя.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            serializer = FollowSerializer(follow.author, context={'request': request})
+            serializer = FollowSerializer(author, context={'request': request})
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         elif request.method == 'DELETE':
@@ -181,3 +172,109 @@ class FollowViewSet(viewsets.ViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             return Response(status=status.HTTP_204_NO_CONTENT)
+
+class UserViewSet(ListModelMixin, RetrieveModelMixin, GenericViewSet):
+    """
+    Вьюсет для работы с пользователями.
+    Поддерживает: профиль пользователя, подписки, управление аватаром.
+    """
+
+    queryset = User.objects.all()
+    serializer_class = CustomUserSerializer
+    pagination_class = CustomPageNumberPagination
+
+    def get_queryset(self):
+        return User.objects.all()
+
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='me',
+        permission_classes=[permissions.IsAuthenticated]
+    )
+    def current_profile(self, request):
+        """Получить данные текущего пользователя."""
+        serializer = self.get_serializer(request.user)
+        return Response(serializer.data)
+
+    @action(
+        detail=False,
+        methods=['put', 'delete'],
+        url_path='me/avatar',
+        permission_classes=[permissions.IsAuthenticated]
+    )
+    def update_avatar(self, request):
+        """Обновить или удалить аватар текущего пользователя."""
+        user = request.user
+
+        if request.method == 'PUT':
+            serializer = AvatarSerializer(instance=user, data=request.data, partial=True)
+            if serializer.is_valid(raise_exception=True):
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+        elif request.method == 'DELETE':
+            if hasattr(user, 'avatar') and user.avatar:
+                user.avatar.delete(save=True)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    @action(
+        detail=True,
+        methods=['post', 'delete'],
+        url_path='subscribe',
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def toggle_subscription(self, request, pk=None):
+        """Подписаться или отписаться от автора."""
+        author = get_object_or_404(User, id=pk)
+        subscriber = request.user
+
+        if request.method == 'POST':
+            _, created = Subscription.objects.get_or_create(
+                author=author,
+                subscriber=subscriber
+            )
+            if not created:
+                return Response(
+                    {'error': 'Вы уже подписаны на этого пользователя'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            recipes_limit = request.query_params.get('recipes_limit')
+            context = {'request': request, 'recipes_limit': recipes_limit}
+            serializer = SubscriptionSerializer(author, context=context)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        elif request.method == 'DELETE':
+            deleted, _ = Subscription.objects.filter(
+                author_id=pk,
+                subscriber=subscriber
+            ).delete()
+            if deleted == 0:
+                return Response(
+                    {'error': 'Вы не подписаны на этого автора.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='subscriptions',
+        permission_classes=[permissions.IsAuthenticated]
+    )
+    def list_subscriptions(self, request):
+        """Возвращает список авторов, на которых подписан пользователь."""
+        subscriptions = request.user.followers.all().select_related('author')
+
+        page = self.paginate_queryset(subscriptions)
+        recipes_limit = request.query_params.get('recipes_limit')
+        context = {
+            'request': request,
+            'recipes_limit': recipes_limit
+        }
+
+        serializer = SubscriptionSerializer(page, many=True, context=context)
+        return self.get_paginated_response(serializer.data)

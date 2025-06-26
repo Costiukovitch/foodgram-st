@@ -2,11 +2,11 @@ import base64
 
 from django.core.files.base import ContentFile
 from django.shortcuts import get_object_or_404
+from django.contrib.auth import get_user_model
 
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
 
-from users.models import User
 from recipes.models import (
     Ingredient,
     Recipe,
@@ -14,6 +14,7 @@ from recipes.models import (
     Favorite,
     ShoppingCart,
 )
+
 from constants import (
     MIN_COOKING_TIME,
     MAX_COOKING_TIME,
@@ -21,10 +22,11 @@ from constants import (
     MAX_INGREDIENT_AMOUNT
 )
 
+User = get_user_model()
+
 
 class Base64ImageField(serializers.ImageField):
     """Поле для загрузки изображения в формате base64."""
-
     def to_internal_value(self, data):
         if isinstance(data, str) and data.startswith('data:image'):
             header, image_str = data.split(';base64,')
@@ -36,14 +38,28 @@ class Base64ImageField(serializers.ImageField):
         return super().to_internal_value(data)
 
 
+class AvatarSerializer(serializers.ModelSerializer):
+    avatar = Base64ImageField()
+
+    class Meta:
+        model = User
+        fields = ['avatar']
+
+
 class CustomUserSerializer(serializers.ModelSerializer):
+    avatar = serializers.ImageField(required=False)
     is_subscribed = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
-            'email', 'id', 'username',
-            'first_name', 'last_name', 'is_subscribed'
+            'email',
+            'id',
+            'username',
+            'first_name',
+            'last_name',
+            'is_subscribed',
+            'avatar',
         ]
 
     def get_is_subscribed(self, obj):
@@ -52,15 +68,36 @@ class CustomUserSerializer(serializers.ModelSerializer):
             return False
         return request.user.follows.filter(author=obj).exists()
 
-
-class CustomCreateUserSerializer(CustomUserSerializer):
-    class Meta(CustomUserSerializer.Meta):
+"""
+class CustomCreateUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
         fields = [
-            'email', 'id', 'username',
-            'first_name', 'last_name', 'password'
+            'email',
+            'username',
+            'password',
+            'first_name',
+            'last_name',
+            'avatar',
         ]
-        extra_kwargs = {'password': {'write_only': True}}
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'avatar': {'required': False}
+        }
 
+    def create(self, validated_data):
+        user = User(
+            email=validated_data['email'],
+            username=validated_data['username'],
+            first_name=validated_data.get('first_name', ''),
+            last_name=validated_data.get('last_name', '')
+        )
+        user.set_password(validated_data['password'])
+        if 'avatar' in validated_data:
+            user.avatar = validated_data['avatar']
+        user.save()
+        return user
+"""
 
 class IngredientSerializer(serializers.ModelSerializer):
     class Meta:
@@ -90,8 +127,7 @@ class RecipeShortSerializer(serializers.ModelSerializer):
 
 class RecipeSerializer(serializers.ModelSerializer):
     author = CustomUserSerializer(read_only=True)
-    ingredients = RecipeIngredientSerializer(
-        source='recipe_ingredients', many=True)
+    ingredients = RecipeIngredientSerializer(source='recipe_ingredients', many=True)
     is_favorited = serializers.SerializerMethodField()
     is_in_shopping_cart = serializers.SerializerMethodField()
 
@@ -138,12 +174,10 @@ class CreateRecipeSerializer(serializers.ModelSerializer):
 
     def validate_ingredients(self, value):
         if not value:
-            raise serializers.ValidationError(
-                "Нужно указать хотя бы один ингредиент.")
+            raise serializers.ValidationError("Нужно указать хотя бы один ингредиент.")
         ingredient_ids = [item['id'] for item in value]
         if len(ingredient_ids) != len(set(ingredient_ids)):
-            raise serializers.ValidationError(
-                "Ингредиенты должны быть уникальными.")
+            raise serializers.ValidationError("Ингредиенты должны быть уникальными.")
         return value
 
     def create_recipe_ingredients(self, recipe, ingredients_data):
