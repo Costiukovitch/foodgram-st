@@ -33,13 +33,12 @@ from .serializers import (
     SubscriptionSerializer,
 )
 
-
 User = get_user_model()
 
 
 def redirect_to_recipe(request, recipe_id):
     if not Recipe.objects.filter(pk=recipe_id).exists():
-        raise Http404('Recipe does not exist')
+        raise Http404('Рецепт не найден')
     return redirect('recipe_detail', pk=recipe_id)
 
 
@@ -56,10 +55,10 @@ class UserViewSet(DjoserUserViewSet):
         return super().me(request)
 
     @action(
-        url_path='me/avatar',
         detail=False,
+        url_path='me/avatar',
         methods=['put', 'delete'],
-        permission_classes=(permissions.IsAuthenticated,)
+        permission_classes=[permissions.IsAuthenticated]
     )
     def manage_avatar(self, request):
         if request.method == 'PUT':
@@ -111,8 +110,9 @@ class UserViewSet(DjoserUserViewSet):
                             status=status.HTTP_201_CREATED)
 
         if request.method == 'DELETE':
+            author = get_object_or_404(User, pk=id)
             deleted, _ = Subscription.objects.filter(
-                author_id=id, subscriber=subscriber
+                author=author, subscriber=subscriber
             ).delete()
             if not deleted:
                 return Response(
@@ -124,20 +124,18 @@ class UserViewSet(DjoserUserViewSet):
     @action(
         detail=False,
         methods=['get'],
-        permission_classes=(permissions.IsAuthenticated,)
+        permission_classes=[permissions.IsAuthenticated]
     )
     def subscriptions(self, request):
-        authors = (
-            User.objects
-            .filter(followers__subscriber=request.user)
-            .annotate(recipes_count=Count('recipes'))
+        user = request.user
+        authors = User.objects.filter(followers__subscriber=user).annotate(
+            recipes_count=Count('recipes')
         )
-        page = self.paginate_queryset(authors)
 
-        recipes_limit = request.query_params.get('recipes_limit')
+        page = self.paginate_queryset(authors)
         context = {
             'request': request,
-            'recipes_limit': recipes_limit
+            'recipes_limit': request.query_params.get('recipes_limit')
         }
 
         serializer = SubscriptionSerializer(page, many=True, context=context)
