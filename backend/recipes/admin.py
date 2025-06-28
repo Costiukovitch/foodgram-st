@@ -1,61 +1,46 @@
 from django.contrib import admin
-from django.utils.translation import gettext_lazy as _
 
 from .models import (
-    Recipe,
-    Ingredient,
-    RecipeIngredient,
-    Favorite,
-    ShoppingCart,
+    Favorite, Ingredient, Recipe, RecipeIngredient, ShoppingCart
 )
 
 
-class BaseAdmin(admin.ModelAdmin):
-    """Базовой класс для общих настроек."""
+@admin.register(ShoppingCart)
+class ShoppingCartAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'recipe')
+    search_fields = ('user__username', 'recipe__name')
     ordering = ('id',)
-    empty_value_display = _('-пусто-')
-
-
-@admin.register(Ingredient)
-class IngredientAdmin(BaseAdmin):
-    """Админ-панель для модели Ингредиент."""
-    list_display = ('id', 'name', 'measurement_unit')
-    search_fields = ('name',)
-    list_filter = ('measurement_unit',)
-
-
-@admin.register(RecipeIngredient)
-class RecipeIngredientAdmin(BaseAdmin):
-    """Админ-панель для связи Рецепт-Ингредиент."""
-    list_display = ('id', 'recipe', 'ingredient', 'amount')
-    search_fields = ('recipe__name', 'ingredient__name')
-    list_select_related = ('recipe', 'ingredient')
 
 
 @admin.register(Favorite)
-class FavoriteAdmin(BaseAdmin):
-    """Админ-панель для Избранного."""
+class FavoriteAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'recipe')
     search_fields = ('user__username', 'recipe__name')
-    list_select_related = ('user', 'recipe')
+    ordering = ('id',)
 
 
-@admin.register(ShoppingCart)
-class ShoppingCartAdmin(BaseAdmin):
-    """Админ-панель для Корзины покупок."""
-    list_display = ('id', 'user', 'recipe')
-    search_fields = ('user__username', 'recipe__name')
-    list_select_related = ('user', 'recipe')
+@admin.register(Ingredient)
+class IngredientAdmin(admin.ModelAdmin):
+    list_display = ('id', 'name', 'measurement_unit')
+    search_fields = ('name',)
+    ordering = ('id',)
 
 
 @admin.register(Recipe)
-class RecipeAdmin(BaseAdmin):
-    """Админ-панель для Рецепта."""
-    list_display = ('id', 'author', 'name', 'get_favorite_count')
+class RecipeAdmin(admin.ModelAdmin):
+    list_display = ('id', 'author', 'name', 'favorite_count')
     search_fields = ('name', 'author__username')
+    ordering = ('id',)
     list_filter = ('author',)
-    list_select_related = ('author',)
 
-    @admin.display(description=_('Число добавлений в избранное'))
-    def get_favorite_count(self, obj):
-        return obj.favorites.count()
+    def favorite_count(self, obj):
+        return Favorite.objects.filter(recipe=obj).count()
+
+    favorite_count.short_description = 'Число добавлений в избранное'
+
+
+@admin.register(RecipeIngredient)
+class RecipeIngredientAdmin(admin.ModelAdmin):
+    list_display = ('id', 'ingredient', 'recipe', 'amount')
+    search_fields = ('ingredient__name', 'recipe__name')
+    ordering = ('id',)

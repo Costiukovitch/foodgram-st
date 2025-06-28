@@ -1,4 +1,4 @@
-from django.urls import path, include
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
@@ -8,13 +8,14 @@ from .views import (
     redirect_to_recipe,
 )
 
+
 router = DefaultRouter()
-router.register('users', UserViewSet, basename='users')
-router.register('recipes', RecipeViewSet, basename='recipes')
-router.register('ingredients', IngredientViewSet, basename='ingredients')
+router.register("users", UserViewSet)
+router.register("recipes", RecipeViewSet)
+router.register("ingredients", IngredientViewSet)
 
 urlpatterns = [
-    path('auth/', include('djoser.urls.authtoken')),
-    path('', include(router.urls)),
+    path("auth/", include("djoser.urls.authtoken")),
+    path("", include(router.urls)),
     path('r/<int:recipe_id>/', redirect_to_recipe, name='redirect_to_recipe'),
 ]

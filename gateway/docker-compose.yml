@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  foodgram_db:
+    image: postgres:14-alpine
+    env_file: .env
+    volumes:
+      - foodgram_pg_data:/var/lib/postgresql/data
+    networks:
+      - foodgram_network
+
+  foodgram_backend:
+    image: ram0k009/foodgram_backend:latest
+    env_file: .env
+    depends_on:
+      - foodgram_db
+    volumes:
+      - foodgram_static:/app/backend_static
+      - foodgram_media:/app/media
+    networks:
+      - foodgram_network
+
+  foodgram_frontend:
+    image: ram0k009/foodgram_frontend:latest
+    env_file: .env
+    depends_on:
+      - foodgram_backend
+    command: ["sh", "-c", "cp -r /app/build/. /app/frontend_static/"]
+    volumes:
+      - foodgram_static:/app/frontend_static
+    networks:
+      - foodgram_network
+
+  foodgram_gateway:
+    image: ram0k009/foodgram_gateway:latest
+    depends_on:
+      - foodgram_frontend
+      - foodgram_backend
+    ports:
+      - "80:80"
+    volumes:
+      - foodgram_static:/staticfiles
+      - foodgram_media:/media
+    networks:
+      - foodgram_network
+
+networks:
+  foodgram_network:
+    driver: bridge
+
+volumes:
+  foodgram_pg_data:
+  foodgram_static:
+  foodgram_media:
