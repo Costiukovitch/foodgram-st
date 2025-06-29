@@ -65,10 +65,9 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_is_subscribed(self, obj):
         user = self.context.get('request').user
-        return (
-            user.is_authenticated
-            and obj.followers.filter(subscriber=user).exists()
-        )
+        if not user.is_authenticated:
+            return False
+        return obj.subscribers.filter(subscriber=user).exists()
 
 
 class IngredientSerializer(serializers.ModelSerializer):
@@ -138,6 +137,10 @@ class RecipeIngredientWriteSerializer(serializers.Serializer):
 class RecipeWriteSerializer(serializers.ModelSerializer):
     ingredients = RecipeIngredientWriteSerializer(many=True)
     image = Base64ImageField()
+    cooking_time = serializers.IntegerField(
+        min_value=MIN_COOKING_TIME,
+        max_value=MAX_COOKING_TIME
+    )
 
     class Meta:
         model = Recipe
@@ -238,8 +241,9 @@ class ShoppingCartSerializer(serializers.ModelSerializer):
         fields = ['user', 'recipe']
 
     def validate(self, data):
-        if ShoppingCart.objects.filter(user=data['user'],
-                                       recipe=data['recipe']).exists():
+        user = data['user']
+        recipe = data['recipe']
+        if user.in_cart.filter(recipe=recipe).exists():
             raise serializers.ValidationError('Рецепт уже в списке покупок.')
         return data
 
@@ -250,11 +254,10 @@ class SubscriptionCreateSerializer(serializers.ModelSerializer):
         fields = ['author', 'subscriber']
 
     def validate(self, data):
-        if data['author'] == data['subscriber']:
-            raise serializers.ValidationError(
-                'Нельзя подписаться на самого себя.')
-        if Subscription.objects.filter(author=data['author'],
-                                       subscriber=data['subscriber']).exists():
-            raise serializers.ValidationError(
-                'Вы уже подписаны на этого автора.')
+        author = data['author']
+        subscriber = data['subscriber']
+        if author == subscriber:
+            raise serializers.ValidationError('Нельзя подписаться на самого себя.')
+        if author.subscribers.filter(subscriber=subscriber).exists():
+            raise serializers.ValidationError('Вы уже подписаны на этого автора.')
         return data

@@ -111,8 +111,8 @@ class UserViewSet(DjoserUserViewSet):
 
         if request.method == 'DELETE':
             author = get_object_or_404(User, pk=id)
-            deleted, _ = Subscription.objects.filter(
-                author=author, subscriber=subscriber
+            deleted, _ = subscriber.subscriptions.filter(
+                author=author
             ).delete()
             if not deleted:
                 return Response(
@@ -128,7 +128,7 @@ class UserViewSet(DjoserUserViewSet):
     )
     def subscriptions(self, request):
         user = request.user
-        authors = User.objects.filter(followers__subscriber=user).annotate(
+        authors = User.objects.filter(subscribers__subscriber=user).annotate(
             recipes_count=Count('recipes')
         )
 
@@ -245,8 +245,9 @@ class RecipeViewSet(viewsets.ModelViewSet):
             )
 
         if request.method == 'DELETE':
-            deleted, _ = Favorite.objects.filter(
-                user=user, recipe=recipe).delete()
+            deleted, _ = user.favorites.filter(
+                recipe=recipe
+            ).delete()
             if deleted == 0:
                 return Response(
                     {'error': 'Recipe not in favorites'},
@@ -277,8 +278,9 @@ class RecipeViewSet(viewsets.ModelViewSet):
             )
 
         if request.method == 'DELETE':
-            deleted, _ = ShoppingCart.objects.filter(
-                user=user, recipe=recipe).delete()
+            deleted, _ = user.in_cart.filter(
+                recipe=recipe
+            ).delete()
             if deleted == 0:
                 return Response(
                     {'error': 'Recipe not in shopping cart'},
